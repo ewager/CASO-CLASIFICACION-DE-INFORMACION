@@ -14,7 +14,7 @@ __author__ = 'Ewald Hollstein <ewager@gmail.com>'
 ###########################################
 # librerias
 ###########################################
-import re #regular expresions
+import smtplib # envio de correo
 import argparse #argumentos 
 import datetime #log file
 import ConfigParser # archivo  de config
@@ -41,6 +41,11 @@ configParser.read(configFilePath)
 ###########################################
 debug = configParser.get('variables globales', 'debug')
 logging = configParser.get('variables globales', 'log')
+gmail_to = configParser.get('variables globales', 'gmail_to')
+gmail_user = configParser.get('variables globales', 'gmail_user')
+gmail_pwd = configParser.get('variables globales', 'gmail_pwd')
+smtp_server = configParser.get('variables globales', 'smtp_server')
+smtp_port = configParser.get('variables globales', 'smtp_port')
 
 ###########################################
 # SET PATH de ejecucion
@@ -140,7 +145,7 @@ def read_json(file_json):
 ###########################################
 # Funcion para leer documentos insertados mongodb 
 ###########################################
-def query_mongo():
+def query_mongo(action):
 
     ###########################################
     # Abrimos conexion a BD
@@ -159,6 +164,25 @@ def query_mongo():
 
 
 ###########################################
+# Funcion para enviar email
+###########################################
+def send_mail(email_to):
+    to = email_to
+    gmailu = gmail_user
+    gmailp = gmail_pwd
+
+    smtpserver = smtplib.SMTP(smtp_server,smtp_port)
+    smtpserver.ehlo()
+    smtpserver.starttls() #startssl
+    smtpserver.ehlo()
+    smtpserver.login(gmailu, gmailp)
+    header = 'To:' + to + '\n' + 'From: ' + gmailu + '\n' + 'Subject: Clasificacion Alta \n'
+    msg = header + '\n Confirma que la clasificacion de informacion de la base de dato  es alta\n\n'
+    smtpserver.sendmail(gmailu, to, msg)
+    write_log("[OK] Correo enviado")
+    smtpserver.quit()
+
+###########################################
 # Main
 ###########################################
 if __name__ == "__main__":                                                                                                     
@@ -166,9 +190,10 @@ if __name__ == "__main__":
 	# Argumentos
 	###########################################
         parser = argparse.ArgumentParser(description='Ingresa archivo CSV, JSON.')
-        parser.add_argument('-j','--json', help='JSON File',required=False)
-        parser.add_argument('-c','--csv',help='CSV File', required=False)
-        parser.add_argument('-s','--show',help='Show Collections Documents', required=False)
+        parser.add_argument('-j','--json', help='Ingresa archivo JSON',required=False)
+        parser.add_argument('-c','--csv',help='Ingresa archivo CSV', required=False)
+        parser.add_argument('-s','--show',help='Lista documentos insertados en MongoDB',required=False)
+        parser.add_argument('-e','--email',help='Enviar correo',required=False)
         args = parser.parse_args()
 
         if args.csv and path.exists(args.csv): #verificamos que se encuentre el argumento y que el archivo exista
@@ -181,4 +206,11 @@ if __name__ == "__main__":
 
         if args.show:
                 write_log("Listando Documentos Insertados...")
-                query_mongo()
+                query_mongo(args.show)
+
+        if args.email:
+                write_log("Enviando correo a: %s " % args.email)
+                send_mail(args.email)
+
+        if not any(vars(args).values()):
+            parser.print_help()
