@@ -1,2 +1,0 @@
-# CASO-CLASIFICACION-DE-INFORMACION
- Caso - JSON y CSV en Base de Datos
