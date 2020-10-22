@@ -5,6 +5,10 @@ Caso - JSON y CSV en Base de Datos
 '''
 
 ###########################################
+# Autor
+###########################################
+__author__ = 'Ewald Hollstein <ewager@gmail.com>'                                                                                            
+###########################################
 # Instalar  librerias requeridas
 # pip install $nombre_de_modulo
 ###########################################
@@ -18,17 +22,19 @@ import os # verificacion de archivos
 import os.path # verificacion de archivos
 from os import path
 import json #modulo para procesar json
+from pymongo import MongoClient # modulo para trabajar con bd
+#verificamos  que exista una instancia de mongodb activa
+try:
+    conn = MongoClient()
+except:
+    print("[ERROR] El script necesita MongoDB")
 
 ###########################################
-# Autor
-###########################################
-__author__ = 'Ewald Hollstein <ewager@gmail.com>'                                                                                            
-
+# Cargamos archivo de configuracion
 ###########################################
 configParser = ConfigParser.RawConfigParser() #cargamos metodo
 configFilePath = './config.cfg' #cargamos archivo de  configuracion
 configParser.read(configFilePath)
-###########################################
 
 ###########################################
 # Variables
@@ -69,6 +75,12 @@ def write_log(data):
 # Funcion para leer archivo csv
 ###########################################
 def read_csv(file_csv):
+  
+    ###########################################
+    # Abrimos conexion a BD
+    ###########################################
+    db = conn.database
+    collection = db.caso
 
     ###########################################
     # Abrimos archivo
@@ -76,23 +88,26 @@ def read_csv(file_csv):
     with open(file_csv, 'r') as f:
         data = f.readlines()
 
-    	for line in data:
-	    if line.startswith("#"):
-		continue
+	write_log("INFO: Procesando Archivo: %s" % file_csv)
 
-	    write_log("INFO: Procesando Registro: %s" % line)
+    	for line in data:
+            # parsing de archivo csv
        	    index = line.split(';')
 
-	    ###########################################
-	    # Parseamos el archivo
-	    ###########################################
-	    row_id= index[0]
-	    user_id= index[1]
-	    user_manager= index[2]
-	    email_owner = index[3]
-	    email_manager = index[5]
+            #creamos array con datos normalizados para insertar
+            data = {
+                    "row_id":index[0],
+                    "user_id":index[1],
+                    "user_state":index[2],
+                    "user_manager":index[3],
+                    "email_owner":index[4],
+                    "email_manager":index[5],
+                    "bd":index[6]
+                    }
 
-            write_log("ROW_ID: %s USER_ID: %s USER_MANAGER: %s EMAIL_OWNER: %s EMAIL_MANAGER: %s" % (row_id,user_id,user_manager,email_owner,email_manager))
+            # Insertamos  datos
+            collection.insert_one(data)
+            write_log("[OK]: Datos Insertados CSV2MongoDB: %s " % data)
 
 ###########################################
 # Funcion para leer archivo json
@@ -100,21 +115,48 @@ def read_csv(file_csv):
 def read_json(file_json):
 
     ###########################################
+    # Abrimos conexion a BD
+    ###########################################
+    db = conn.database
+    collection = db.caso
+
+    ###########################################
     # Abrimos archivo
     ###########################################
     with open(file_json, 'r') as f:
-        data = json.load(f)
-        for p in data['bd']:
-            print ('nombre_BD: ' + p['nombre_BD'] + ' ' + 'Clasificacion: ' +  p['Clasificacion'])
+        data_json = json.load(f)
+        for line in data_json['bd']:
 
+            #creamos array con datos normalizados para insertar
+            data = {
+                    "nombre_BD":line['nombre_BD'],
+                    "Clasificacion":line['Clasificacion']
+                    }
+
+            # Insertamos  datos
+            collection.insert_one(data)
+            write_log("[OK]: Datos Insertados JSON2MongoDB: %s " % data)
 
 ###########################################
-# Funcion para insertar data
+# Funcion para leer documentos insertados mongodb 
 ###########################################
+def query_mongo():
 
-###########################################
-# Funcion para enviar correo
-###########################################
+    ###########################################
+    # Abrimos conexion a BD
+    ###########################################
+    db = conn.database
+    collection = db.caso
+
+    # Query
+    check = db.list_collection_names()
+    if "caso" in check:
+        cursor = collection.find()
+        for record in cursor:
+            write_log("Registro Encontrado: %s" % record)
+    else:
+        write_log("[Error] MongoDB")
+
 
 ###########################################
 # Main
@@ -124,21 +166,19 @@ if __name__ == "__main__":
 	# Argumentos
 	###########################################
         parser = argparse.ArgumentParser(description='Ingresa archivo CSV, JSON.')
-        parser.add_argument('-j','--json', help='JSON File',required=True)
-        parser.add_argument('-c','--csv',help='CSV File', required=True)
+        parser.add_argument('-j','--json', help='JSON File',required=False)
+        parser.add_argument('-c','--csv',help='CSV File', required=False)
+        parser.add_argument('-s','--show',help='Show Collections Documents', required=False)
         args = parser.parse_args()
 
         if args.csv and path.exists(args.csv): #verificamos que se encuentre el argumento y que el archivo exista
                 write_log("Archivo CSV %s existe para ser procesado." % args.csv)
                 read_csv(args.csv)
 
-        else:
-                write_log("Archivo CSV %s no existe." % args.csv)
-
         if args.json and path.exists(args.json): #verificamos que se encuentre el argumento y que el archivo exista
                 write_log("Archivo JSON %s existe para ser procesado." % args.json)
                 read_json(args.json)
 
-        else:
-                write_log("Archivo JSON %s no existe." % args.json)
-
+        if args.show:
+                write_log("Listando Documentos Insertados...")
+                query_mongo()
