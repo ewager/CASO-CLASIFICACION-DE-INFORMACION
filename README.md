@@ -10,5 +10,6 @@ import os # verificacion de archivos
 import os.path # verificacion de archivos
 import json #modulo para procesar json
 import MongoClient # modulo para trabajar con bd
+import yagmail 
 
 2. Instalar mongoDB -- # apt-get install mongodb
